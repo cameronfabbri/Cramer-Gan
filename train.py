@@ -36,34 +36,48 @@ if __name__ == '__main__':
    
    # placeholders for data going into the network
    global_step = tf.Variable(0, name='global_step', trainable=False)
-   z           = tf.placeholder(tf.float32, shape=(BATCH_SIZE, 100), name='z')
+   z1          = tf.placeholder(tf.float32, shape=(BATCH_SIZE, 100), name='z1')
+   z2          = tf.placeholder(tf.float32, shape=(BATCH_SIZE, 100), name='z2')
 
    train_images_list = data_ops.loadData(DATA_DIR, DATASET)
    filename_queue    = tf.train.string_input_producer(train_images_list)
-   real_images       = data_ops.read_input_queue(filename_queue, BATCH_SIZE)
 
-   # generated images
-   gen_images_1 = netG(z, BATCH_SIZE)
-   gen_images_2 = netG(z, BATCH_SIZE, reuse=True)
+   # sample from true data
+   real_images = data_ops.read_input_queue(filename_queue, BATCH_SIZE)
 
+   # dummy to initialize D
+   dummy = netD(real_images, reuse=False)
+
+   # sample two independent images from the generator
+   gen_images1 = netG(z1, BATCH_SIZE)
+   gen_images2 = netG(z2, BATCH_SIZE, reuse=True)
+
+   # define the critic
+   def critic(x):
+      return tf.norm(netD(x,reuse=True)-netD(gen_images2,reuse=True), ord=2) - tf.norm(netD(x,reuse=True), ord=2)
+
+   # sample epsilon from uniform distribution
    epsilon = tf.random_uniform([], 0.0, 1.0)
-   x_hat = real_images*epsilon + (1-epsilon)*gen_images
-  
-   # define the critic f(x) = || h(x) - h(x'g) ||_2 - || h(x) ||_2
    
-   # get the output from D on the real and fake data
-   errD_real = netD(real_images, BATCH_SIZE)
-   errD_fake = netD(gen_images, BATCH_SIZE, reuse=True)
+   # interpolate real and generated first samples
+   x_hat = epsilon * real_images + (1 - epsilon) * gen_images1
+   d_hat = critic(x_hat)
+   ddx = tf.gradients(d_hat, x_hat)[0]
+   ddx = tf.norm(ddx, axis=1)
+   ddx = tf.reduce_mean(tf.square(ddx - 1.0) * 10)
+   
+   D_real = netD(real_images)
+   D_gen1 = netD(gen_images1)
+   D_gen2 = netD(gen_images2)
 
-   # cost functions
-   errD = tf.reduce_mean(errD_real) - tf.reduce_mean(errD_fake)
-   errG = tf.reduce_mean(errD_fake)
-   
-   d_hat = netD(x_hat, BATCH_SIZE, reuse=True)
-   gradients = tf.gradients(d_hat, x_hat)[0]
-   slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
-   gradient_penalty = 10*tf.reduce_mean((slopes-1.0)**2)
-   errD += gradient_penalty
+   # compute generator loss
+   #errG = tf.norm((D_real-D_gen1),ord=2) + tf.norm((D_real-D_gen2),ord=2) - tf.norm((D_gen1-D_gen2),ord=2)
+
+   # computer the surrogate generator loss
+   errG = tf.reduce_mean(critic(real_images) - critic(gen_images1))
+
+   # compute the critic loss
+   errD = -errG + ddx
 
    # tensorboard summaries
    tf.summary.scalar('d_loss', errD)
@@ -76,10 +90,10 @@ if __name__ == '__main__':
    g_vars = [var for var in t_vars if 'g_' in var.name]
 
    # optimize G
-   G_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.0,beta2=0.9).minimize(errG, var_list=g_vars, global_step=global_step)
+   G_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.,beta2=0.9).minimize(errG, var_list=g_vars, global_step=global_step)
 
    # optimize D
-   D_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.0,beta2=0.9).minimize(errD, var_list=d_vars)
+   D_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.,beta2=0.9).minimize(errD, var_list=d_vars)
 
    saver = tf.train.Saver(max_to_keep=1)
    init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
@@ -117,15 +131,17 @@ if __name__ == '__main__':
 
       # train the discriminator for 5 or 25 runs
       for critic_itr in range(n_critic):
-         batch_z = np.random.normal(-1.0, 1.0, size=[BATCH_SIZE, 100]).astype(np.float32)
-         sess.run(D_train_op, feed_dict={z:batch_z})
+         batch_z1 = np.random.normal(-1.0, 1.0, size=[BATCH_SIZE, 100]).astype(np.float32)
+         batch_z2 = np.random.normal(-1.0, 1.0, size=[BATCH_SIZE, 100]).astype(np.float32)
+         sess.run(D_train_op, feed_dict={z1:batch_z1, z2:batch_z2})
 
       # now train the generator once! use normal distribution, not uniform!!
-      batch_z = np.random.normal(-1.0, 1.0, size=[BATCH_SIZE, 100]).astype(np.float32)
-      sess.run(G_train_op, feed_dict={z:batch_z})
+      batch_z1 = np.random.normal(-1.0, 1.0, size=[BATCH_SIZE, 100]).astype(np.float32)
+      batch_z2 = np.random.normal(-1.0, 1.0, size=[BATCH_SIZE, 100]).astype(np.float32)
+      sess.run(G_train_op, feed_dict={z1:batch_z1, z2:batch_z2})
 
       # now get all losses and summary *without* performing a training step - for tensorboard
-      D_loss, G_loss, summary = sess.run([errD, errG, merged_summary_op], feed_dict={z:batch_z})
+      D_loss, G_loss, summary = sess.run([errD, errG, merged_summary_op], feed_dict={z1:batch_z1, z2:batch_z2})
       summary_writer.add_summary(summary, step)
 
       print 'step:',step,'D loss:',D_loss,'G_loss:',G_loss,'time:',time.time()-start
@@ -136,7 +152,7 @@ if __name__ == '__main__':
          saver.save(sess, CHECKPOINT_DIR+'checkpoint-'+str(step))
          saver.export_meta_graph(CHECKPOINT_DIR+'checkpoint-'+str(step)+'.meta')
          batch_z  = np.random.normal(-1.0, 1.0, size=[BATCH_SIZE, 100]).astype(np.float32)
-         gen_imgs = sess.run([gen_images], feed_dict={z:batch_z})
+         gen_imgs = sess.run([gen_images], feed_dict={z1:batch_z1, z2:batch_z2})
 
          data_ops.saveImage(gen_imgs[0], step, IMAGES_DIR)
          print 'Done saving'
