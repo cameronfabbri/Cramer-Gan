@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
    # define the critic
    def critic(x):
-      return tf.norm(netD(x,reuse=True)-netD(gen_images2,reuse=True), ord=2) - tf.norm(netD(x,reuse=True), ord=2)
+      return tf.norm(netD(x,reuse=True)-netD(gen_images2,reuse=True), axis=1) - tf.norm(netD(x,reuse=True), axis=1)
 
    # sample epsilon from uniform distribution
    epsilon = tf.random_uniform([], 0.0, 1.0)
@@ -73,7 +73,7 @@ if __name__ == '__main__':
    # compute generator loss
    #errG = tf.norm((D_real-D_gen1),ord=2) + tf.norm((D_real-D_gen2),ord=2) - tf.norm((D_gen1-D_gen2),ord=2)
 
-   # computer the surrogate generator loss
+   # compute the surrogate generator loss
    errG = tf.reduce_mean(critic(real_images) - critic(gen_images1))
 
    # compute the critic loss
@@ -90,10 +90,10 @@ if __name__ == '__main__':
    g_vars = [var for var in t_vars if 'g_' in var.name]
 
    # optimize G
-   G_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.,beta2=0.9).minimize(errG, var_list=g_vars, global_step=global_step)
+   G_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5,beta2=0.9).minimize(errG, var_list=g_vars, global_step=global_step)
 
    # optimize D
-   D_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.,beta2=0.9).minimize(errD, var_list=d_vars)
+   D_train_op = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5,beta2=0.9).minimize(errD, var_list=d_vars)
 
    saver = tf.train.Saver(max_to_keep=1)
    init = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
