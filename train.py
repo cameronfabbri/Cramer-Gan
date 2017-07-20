@@ -43,8 +43,14 @@ if __name__ == '__main__':
    real_images       = data_ops.read_input_queue(filename_queue, BATCH_SIZE)
 
    # generated images
-   gen_images = netG(z, BATCH_SIZE)
+   gen_images_1 = netG(z, BATCH_SIZE)
+   gen_images_2 = netG(z, BATCH_SIZE, reuse=True)
 
+   epsilon = tf.random_uniform([], 0.0, 1.0)
+   x_hat = real_images*epsilon + (1-epsilon)*gen_images
+  
+   # define the critic f(x) = || h(x) - h(x'g) ||_2 - || h(x) ||_2
+   
    # get the output from D on the real and fake data
    errD_real = netD(real_images, BATCH_SIZE)
    errD_fake = netD(gen_images, BATCH_SIZE, reuse=True)
@@ -53,8 +59,6 @@ if __name__ == '__main__':
    errD = tf.reduce_mean(errD_real) - tf.reduce_mean(errD_fake)
    errG = tf.reduce_mean(errD_fake)
    
-   epsilon = tf.random_uniform([], 0.0, 1.0)
-   x_hat = real_images*epsilon + (1-epsilon)*gen_images
    d_hat = netD(x_hat, BATCH_SIZE, reuse=True)
    gradients = tf.gradients(d_hat, x_hat)[0]
    slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))

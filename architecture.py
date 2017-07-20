@@ -3,39 +3,42 @@ import tensorflow.contrib.layers as tcl
 import sys
 from tf_ops import *
 
-def netG(z, batch_size):
+def netG(z, batch_size, reuse=False):
    print 'GENERATOR'
+   
+   sc = tf.get_variable_scope()
+   with tf.variable_scope(sc, reuse=reuse):
 
-   z = tcl.fully_connected(z, 4*4*1024, activation_fn=tf.identity, scope='g_z')
-   z = tf.reshape(z, [batch_size, 4, 4, 1024])
-   z = tcl.batch_norm(relu(z))
-   
-   conv1 = tcl.convolution2d_transpose(z, 512, 5, 2, normalizer_fn=tcl.batch_norm, activation_fn=tf.nn.relu, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv1')
-   #conv1 = tcl.batch_norm(relu(conv1))
-   
-   conv2 = tcl.convolution2d_transpose(conv1, 256, 5, 2, normalizer_fn=tcl.batch_norm, activation_fn=tf.nn.relu, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv2')
-   conv2 = tcl.batch_norm(relu(conv2))
-   
-   conv3 = tcl.convolution2d_transpose(conv2, 128, 5, 2, normalizer_fn=tcl.batch_norm, activation_fn=tf.nn.relu, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv3')
-   conv3 = tcl.batch_norm(relu(conv3))
-   
-   conv4 = tcl.convolution2d_transpose(conv3, 3, 5, 2, activation_fn=tf.nn.tanh, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv4')
-   conv4 = tanh(conv4)
+      z = tcl.fully_connected(z, 4*4*1024, activation_fn=tf.identity, scope='g_z')
+      z = tf.reshape(z, [batch_size, 4, 4, 1024])
+      z = tcl.batch_norm(relu(z))
+      
+      conv1 = tcl.convolution2d_transpose(z, 512, 5, 2, normalizer_fn=tcl.batch_norm, activation_fn=tf.nn.relu, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv1')
+      #conv1 = tcl.batch_norm(relu(conv1))
+      
+      conv2 = tcl.convolution2d_transpose(conv1, 256, 5, 2, normalizer_fn=tcl.batch_norm, activation_fn=tf.nn.relu, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv2')
+      conv2 = tcl.batch_norm(relu(conv2))
+      
+      conv3 = tcl.convolution2d_transpose(conv2, 128, 5, 2, normalizer_fn=tcl.batch_norm, activation_fn=tf.nn.relu, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv3')
+      conv3 = tcl.batch_norm(relu(conv3))
+      
+      conv4 = tcl.convolution2d_transpose(conv3, 3, 5, 2, activation_fn=tf.nn.tanh, weights_initializer=tf.random_normal_initializer(stddev=0.02), scope='g_conv4')
+      conv4 = tanh(conv4)
 
-   print 'z:',z
-   print 'conv1:',conv1
-   print 'conv2:',conv2
-   print 'conv3:',conv3
-   print 'conv4:',conv4
-   print
-   print 'END G'
-   print
-   tf.add_to_collection('vars', z)
-   tf.add_to_collection('vars', conv1)
-   tf.add_to_collection('vars', conv2)
-   tf.add_to_collection('vars', conv3)
-   tf.add_to_collection('vars', conv4)
-   return conv4 
+      print 'z:',z
+      print 'conv1:',conv1
+      print 'conv2:',conv2
+      print 'conv3:',conv3
+      print 'conv4:',conv4
+      print
+      print 'END G'
+      print
+      tf.add_to_collection('vars', z)
+      tf.add_to_collection('vars', conv1)
+      tf.add_to_collection('vars', conv2)
+      tf.add_to_collection('vars', conv3)
+      tf.add_to_collection('vars', conv4)
+      return conv4 
 
 
 '''
